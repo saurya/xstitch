@@ -1,0 +1,47 @@
+<html>
+<head>
+<title>Cross-stitch sketcher</title>
+<link rel="stylesheet" type="text/css" href="cross.css">
+<style>{% include "cross.css" %}</style>
+<script src="http://code.jquery.com/jquery-1.8.2.min.js"></script>
+</head>
+<div id="backdrop">
+<div id="exitbutton">[X]</div>
+<center>
+<div id="colorOptions" class="panel options">
+	<div>Color: <input type="text" id="color" value="red"></input></div>
+	<div class="button" id="addcolor">save</div>
+</div>
+<div id="renderOptions" class="panel options">
+	<div>
+		Number of blocks in X direction: <input type="text" id="numBlocksX" value="50"> </input>
+	</div>
+	<div>
+		Number of blocks in Y direction: <input type="text" id="numBlocksY" value="50"> </input>
+	</div>
+	<div>
+		Size of blocks (in pixels): <input type="text" id="blockSize" value="10"> </input>
+	</div>
+	<div class="button" id="render">render</div>
+</div>
+</center>
+</div>
+<div id="options">
+<div id="palette">
+<div id="new_shade" class="shade"></div>
+</div>
+<div id="showRenderOptions" class="options button">grid</div>
+<div class="options button" id="clear">clear</div>
+</div>
+
+
+<div id="graphcontainer">
+<div class="graph">
+</div>
+<div class="addcolumn"><div class="addcolumnbutton"></div></div>
+<div class="addrow"><div class="addrowbutton"></div></div>
+</div>
+<script>{% include "cross.js" %}</script>
+
+</html>
+
