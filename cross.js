@@ -1,6 +1,12 @@
+Array.prototype.insert = function(index, item) {
+  this.splice(index, 0, item);
+};
+
 var blockWidth_ = 5;
 var blockHeight_ = 5;
 var setThisRun = [];
+var undoStack = [];
+var statePointer = undoStack.length - 1;
 var mouseDown_ = false;
 var mouseUp_ = false;
 
@@ -29,17 +35,17 @@ var Grid = function(numBlocksX, numBlocksY, blockWidth, blockHeight) {
 $('#clear').click(this.clearGrid.bind(this));
 $('.addcolumnbutton').click(this.addColumn.bind(this));
 $('.addrowbutton').click(this.addRow.bind(this));
-
 	this.blockWidth_ = blockWidth;
 	this.blockHeight_ = blockHeight;
 	this.numBlocksX_ = 1;
 	this.numBlocksY_ = 1;
 	grid.html('');
         this.rows_ = [];
-        var firstBlock = new Box(blockWidth, blockHeight, 0, 0); 
-        this.allBlocks_ = [ firstBlock ];
+        this.allBlocks_ = [];
         this.addRow(null, false, numBlocksY - 1);
         this.addColumn(null, false, numBlocksX - 1);
+        undoStack.push(this.allBlocks_); 
+        statePointer++;
 };
 
 Grid.prototype.addRow = function(e, top, opt_numRows) {
@@ -48,6 +54,7 @@ Grid.prototype.addRow = function(e, top, opt_numRows) {
     var row = new Row(); 
     for (var i = 0; i < this.numBlocksX_; i++) {
       var block = new Box(this.blockWidth_, this.blockHeight_, i, this.numBlocksY_);
+      this.allBlocks_.push(block);
       row.append(block);
     }
     this.numBlocksY_++;
@@ -65,6 +72,7 @@ Grid.prototype.addColumn = function(e, left, opt_numCols) {
   for (var j = 0; j < opt_numCols; j++) {
     for (var i = 0; i < this.rows_.length; i++) {
       var block = new Box(this.blockWidth_, this.blockHeight_, this.numBlocksX_, j);
+      this.allBlocks_.push(block);
       if (left) {
         this.rows_[i].prepend(block);
       } else {
@@ -107,7 +115,8 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.blockHeight_ = blockHeight;
   this.x_ = x;
   this.y_ = y;
-  this.color_ = '';
+  this.colors_ = [];
+  this.statePointer = 0;
   var boundColorBox = this.colorBox.bind(this);
   var boundMouseUp = this.mouseUp.bind(this);
   this.el_ = $('<div>').addClass('block').click(boundColorBox).
@@ -115,12 +124,29 @@ var Box = function(blockWidth, blockHeight, x, y) {
       hover(boundColorBox);
   this.el_.css('width', blockWidth + 'px');
   this.el_.css('height', blockHeight + 'px');
+  this.clear();
   this.setThisRun_ = false;
 };
 
 Box.prototype.clear = function() {
   this.el_.css('background-color', ''); 
-  this.color_ = '';
+  this.colors_.push('');
+}
+
+Box.prototype.popState = function() {
+  this.statePointer = this.statePointer == 0 ? 0 : this.statePointer - 1;
+  this.el_.css('background-color', this.colors_[this.statePointer]);
+}
+
+Box.prototype.forwardState = function() {
+  this.statePointer = this.statePointer == this.colors_.length - 1 ? this.statePointer : this.statePointer + 1;
+  this.el_.css('background-color', this.colors_[this.statePointer]);
+}
+
+Box.prototype.setColor = function(color) {
+  this.el_.css('background-color', color);
+  this.colors_.push(color);
+  this.statePointer++;
 }
 
 Box.prototype.mouseDown = function(e) {
@@ -136,12 +162,11 @@ Box.prototype.colorBox = function(e) {
       var color = util.getColorValue($('#color').val());
       this.setThisRun_ = true;
       setThisRun.push(this);
-      if (this.color_ == color) {
+      if (this.colors_[this.colors_.length - 1] == color) {
         this.clear();
         window.console.log ("Clearing the color!");
       } else {
-        this.el_.css('background-color', color);
-        this.color_ = color;
+        this.setColor(color);
         window.console.log("Applying the color!", color);
       }
     }
@@ -152,6 +177,8 @@ Box.prototype.colorBox = function(e) {
           for (var i = 0; i < setThisRun.length; i++) {
              setThisRun[i].setThisRun_ = false;
           }
+          undoStack.insert(statePointer, setThisRun);
+          statePointer++;
           setThisRun = [];
           window.console.log("Done coloring!");
     }
@@ -205,6 +232,22 @@ function toggleAddColumnButton() {
 function toggleAddRowButton() {
   $('.addrowbutton').toggle();
 }
+function undo() {
+  if (statePointer <= 0) { return; }
+  statePointer--;
+  var newState = undoStack[statePointer];
+  for (var i = 0; i < newState.length; i++) {
+    newState[i].popState();
+  } 
+}
+function redo() {
+  if (statePointer > undoStack.length - 1) { return; }
+  var newState = undoStack[statePointer];
+  for (var i = 0; i < newState.length; i++) {
+    newState[i].forwardState();
+  } 
+  statePointer++;
+}
 $('#new_shade').click(showColorOptions);
 $('#render').click(render);
 $('#addcolor').click(addColor);
@@ -215,4 +258,6 @@ $('#showRenderOptions').click(showRenderOptions);
 $('.panel').hide();
 $('.addcolumn').hover(toggleAddColumnButton, toggleAddColumnButton);
 $('.addrow').hover(toggleAddRowButton, toggleAddRowButton);
+$('#undo').click(undo);
+$('#redo').click(redo);
 var grid = new Grid(60, 50, 10, 10);
