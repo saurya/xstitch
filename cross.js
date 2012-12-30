@@ -9,7 +9,12 @@ var undoStack = [];
 var statePointer = -1;
 var mouseDown_ = false;
 var mouseUp_ = false;
-var eraseMode = false;
+var ERASE_MODE = 'erase';
+var COPY_MODE = 'copy';
+var COLOR_MODE = 'color';
+var PASTE_MODE = 'paste';
+var mode = COLOR_MODE;
+var copyBuffer = {};
 
 var WHITE_COLOR = 'rgba(0, 0, 0, 0)';
 var BLOCK_CLASS = 'block';
@@ -39,11 +44,11 @@ var Grid = function(numBlocksX, numBlocksY, blockWidth, blockHeight) {
   this.blockWidth_ = blockWidth;
   this.blockHeight_ = blockHeight;
   this.numBlocksX_ = 1;
-  this.numBlocksY_ = 1;
+  this.numBlocksY_ = 0;
   grid.html('');
   this.rows_ = [];
   this.allBlocks_ = [];
-  this.addRow(null, false, numBlocksY - 1);
+  this.addRow(null, false, numBlocksY);
   this.addColumn(null, false, numBlocksX - 1);
   undoStack.push(this.allBlocks_); 
   statePointer++;
@@ -72,7 +77,7 @@ Grid.prototype.addColumn = function(e, left, opt_numCols) {
   opt_numCols = opt_numCols ? opt_numCols : 1;
   for (var j = 0; j < opt_numCols; j++) {
     for (var i = 0; i < this.rows_.length; i++) {
-      var block = new Box(this.blockWidth_, this.blockHeight_, this.numBlocksX_, j);
+      var block = new Box(this.blockWidth_, this.blockHeight_, this.numBlocksX_, i);
       this.allBlocks_.push(block);
       if (left) {
         this.rows_[i].prepend(block);
@@ -86,6 +91,8 @@ Grid.prototype.addColumn = function(e, left, opt_numCols) {
 
 Grid.prototype.clearGrid = function(e) {
     for (var i = 0; i < this.rows_.length; i++) {
+      //FIXME(saurya): This causes bugs with the undo/redo feature since
+      // there's no object added to the global undoStack.
       this.rows_[i].clear();
     }
 }
@@ -107,7 +114,7 @@ Row.prototype.prepend = function(block) {
 
 Row.prototype.clear = function() {
   for (var i = 0; i < this.blocks_.length; i++) {
-    this.blocks[i].clear();
+    this.blocks_[i].clear();
   }
 }
 
@@ -120,8 +127,9 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.statePointer_ = -1;
   var boundColorBox = this.colorBox.bind(this);
   var boundMouseUp = this.mouseUp.bind(this);
+  var boundMouseDown = this.mouseDown.bind(this);
   this.el_ = $('<div>').addClass('block').click(boundColorBox).
-      mousedown(this.mouseDown).mouseup(boundMouseUp).
+      mousedown(boundMouseDown).mouseup(boundMouseUp).
       hover(boundColorBox);
   this.el_.css('width', blockWidth + 'px');
   this.el_.css('height', blockHeight + 'px');
@@ -129,42 +137,55 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.setThisRun_ = false;
 };
 
+Box.prototype.getX = function() {
+  return this.x_;
+};
+
+Box.prototype.getY = function() {
+  return this.y_;
+};
+
 Box.prototype.clear = function() {
   this.setColor(''); 
+};
+
+Box.prototype.getColor = function() {
+  return this.colors_[this.colors_.length - 1];
 }
 
 Box.prototype.popState = function() {
   this.statePointer_ = this.statePointer_ == 0 ? 0 : this.statePointer_ - 1;
   this.el_.css('background-color', this.colors_[this.statePointer_]);
-}
+};
 
 Box.prototype.forwardState = function() {
   this.statePointer_ = this.statePointer_ == this.colors_.length - 1 ? this.statePointer_ : this.statePointer_ + 1;
   this.el_.css('background-color', this.colors_[this.statePointer_]);
-}
+};
 
 Box.prototype.setColor = function(color) {
   this.el_.css('background-color', color);
   this.colors_.push(color);
   this.statePointer_++;
-}
+};
 
 Box.prototype.mouseDown = function(e) {
   mouseDown_ = true;
-}
+  copyBuffer.startbox = copyBuffer.startbox ? copyBuffer.startbox : this;
+};
 
 Box.prototype.mouseUp = function(e) {
   mouseUp_ = true;
-}
+};
 
 Box.prototype.colorBox = function(e) {
   if (mouseDown_ && !this.setThisRun_) {
     var color = util.getColorValue($('#color').val());
     this.setThisRun_ = true;
     setThisRun.push(this);
-    if (eraseMode) {
+    if (mode == ERASE_MODE) {
       this.clear();
-    } else {
+    } else if(mode == COLOR_MODE) {
       this.setColor(color);
     }
   }
@@ -175,11 +196,56 @@ Box.prototype.colorBox = function(e) {
     for (var i = 0; i < setThisRun.length; i++) {
        setThisRun[i].setThisRun_ = false;
     }
-    statePointer++;
-    undoStack.insert(statePointer, setThisRun);
+    if (mode == COPY_MODE) {
+      copyBuffer.endbox = this;
+      alignBufferTopLeft(copyBuffer);
+      mode = PASTE_MODE;
+    } else {
+      if (mode == PASTE_MODE) {
+        setThisRun = applyToRegionAroundBox(this, copyBuffer);
+        copyBuffer.startbox = null;
+      }
+      statePointer++;
+      undoStack.insert(statePointer, setThisRun);
+    }
     setThisRun = [];
-    window.console.log("Done coloring!");
   }
+};
+
+function alignBufferTopLeft(buffer) {
+  // TODO(saurya): This could be much shorter if we chose to just
+  // record minimum and maximum X and Y when we are in copy mode.
+  var minX = Math.min(buffer.startbox.x_, buffer.endbox.x_);
+  var minY = Math.min(buffer.startbox.y_, buffer.endbox.y_);
+  var maxX = Math.max(buffer.startbox.x_, buffer.endbox.x_);
+  var maxY = Math.max(buffer.startbox.y_, buffer.endbox.y_);
+  buffer.startbox = grid.rows_[minY].blocks_[minX];
+  buffer.endbox = grid.rows_[maxY].blocks_[maxX];
+  buffer.maxX = maxX;
+  buffer.maxY = maxY;
+  buffer.minX = minX;
+  buffer.minY = minY;
+}
+
+function applyToRegionAroundBox(box, buffer) {
+  var changedBoxes = []; 
+  for (var i = 0; i <= buffer.maxY - buffer.minY; i++) {
+    var changedY = box.y_ + i;
+    if (changedY > grid.rows_.length) { 
+      break;
+    }
+    for (var j = 0; j <= buffer.maxX - buffer.minX; j++) {
+      var changedX = box.x_ + j;   
+      if (changedX >= grid.rows_[0].blocks_.length) {
+        break;
+      }
+      var changedBox = grid.rows_[changedY].blocks_[changedX];
+      var copyBox = grid.rows_[buffer.minY + i].blocks_[buffer.minX + j];
+      changedBox.setColor(copyBox.getColor());
+      changedBoxes.push(changedBox);
+    }
+  }
+  return changedBoxes;
 }
 
 function addColor(e) {
@@ -197,7 +263,7 @@ function setColorValue() {
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
   $('#color').val(shade.css('background-color'));
   shade.addClass(SELECTED_COLOR_CLASS);
-  eraseMode = false;
+  mode = COLOR_MODE;
 }
 
 function render(e) {
@@ -270,7 +336,16 @@ $('.addrow').hover(toggleAddRowButton, toggleAddRowButton);
 $('#undo').click(undo);
 $('#redo').click(redo);
 $('#erase').click(function() {
-  eraseMode = true;
+  mode = ERASE_MODE;
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
 });
+$('#copy').click(function() {
+  mode = COPY_MODE;
+  $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+});
+$('#paste').click(function() {
+  mode = PASTE_MODE;
+  $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+});
+
 var grid = new Grid(60, 50, 10, 10);
