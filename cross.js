@@ -250,6 +250,10 @@ function applyToRegionAroundBox(box, buffer) {
 
 function addColor(e) {
   color = $('#color').val();
+  addColorToPalette(color);
+}
+
+function addColorToPalette(color) {
   shade = $('<div>').addClass(SHADE_CLASS).css('background-color', color);
   shade.color = color;
   $($('#palette').children()[0]).after(shade);
@@ -327,6 +331,13 @@ $('#new_shade').click(showColorOptions);
 $('#render').click(render);
 $('#addcolor').click(addColor);
 $('#exitbutton').click(hideBackdrop);
+addColorToPalette('blue');
+addColorToPalette('yellow');
+addColorToPalette('green');
+addColorToPalette('orange');
+addColorToPalette('purple');
+addColorToPalette('brown');
+addColorToPalette('pink');
 addColor();
 $('#showColorOptions').click(showColorOptions);
 $('#showRenderOptions').click(showRenderOptions);
