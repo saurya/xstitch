@@ -14,7 +14,7 @@ var COPY_MODE = 'copy';
 var COLOR_MODE = 'color';
 var PASTE_MODE = 'paste';
 var mode = COLOR_MODE;
-var copyBuffer = {};
+var copyBuffer = { startbox: null };
 
 var WHITE_COLOR = 'rgba(0, 0, 0, 0)';
 var BLOCK_CLASS = 'block';
@@ -171,7 +171,9 @@ Box.prototype.setColor = function(color) {
 
 Box.prototype.mouseDown = function(e) {
   mouseDown_ = true;
-  copyBuffer.startbox = copyBuffer.startbox ? copyBuffer.startbox : this;
+  if (mode == COPY_MODE && !copyBuffer.startbox) {
+    copyBuffer.startbox = this;
+  }
 };
 
 Box.prototype.mouseUp = function(e) {
@@ -204,6 +206,7 @@ Box.prototype.colorBox = function(e) {
       if (mode == PASTE_MODE) {
         setThisRun = applyToRegionAroundBox(this, copyBuffer);
         copyBuffer.startbox = null;
+        copyBuffer.endbox = null;
       }
       statePointer++;
       undoStack.insert(statePointer, setThisRun);
