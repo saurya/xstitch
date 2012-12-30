@@ -6,9 +6,10 @@ var blockWidth_ = 5;
 var blockHeight_ = 5;
 var setThisRun = [];
 var undoStack = [];
-var statePointer = undoStack.length - 1;
+var statePointer = -1;
 var mouseDown_ = false;
 var mouseUp_ = false;
+var eraseMode = false;
 
 var WHITE_COLOR = 'rgba(0, 0, 0, 0)';
 var BLOCK_CLASS = 'block';
@@ -25,27 +26,27 @@ SELECTED_COLOR_CLASS: '.' + SELECTED_COLOR_CLASS
 util = {};
 
 util.getColorValue = function(color) {
-    var fakeElem = $('<div>').css('background-color', color);
-    $('body').append(fakeElem);
-    return fakeElem.css('background-color');
+  var fakeElem = $('<div>').css('background-color', color);
+  $('body').append(fakeElem);
+  return fakeElem.css('background-color');
 };
 
 var Grid = function(numBlocksX, numBlocksY, blockWidth, blockHeight) {
-	var grid = $('.' + GRID_CLASS);
-$('#clear').click(this.clearGrid.bind(this));
-$('.addcolumnbutton').click(this.addColumn.bind(this));
-$('.addrowbutton').click(this.addRow.bind(this));
-	this.blockWidth_ = blockWidth;
-	this.blockHeight_ = blockHeight;
-	this.numBlocksX_ = 1;
-	this.numBlocksY_ = 1;
-	grid.html('');
-        this.rows_ = [];
-        this.allBlocks_ = [];
-        this.addRow(null, false, numBlocksY - 1);
-        this.addColumn(null, false, numBlocksX - 1);
-        undoStack.push(this.allBlocks_); 
-        statePointer++;
+  var grid = $('.' + GRID_CLASS);
+  $('#clear').click(this.clearGrid.bind(this));
+  $('.addcolumnbutton').click(this.addColumn.bind(this));
+  $('.addrowbutton').click(this.addRow.bind(this));
+  this.blockWidth_ = blockWidth;
+  this.blockHeight_ = blockHeight;
+  this.numBlocksX_ = 1;
+  this.numBlocksY_ = 1;
+  grid.html('');
+  this.rows_ = [];
+  this.allBlocks_ = [];
+  this.addRow(null, false, numBlocksY - 1);
+  this.addColumn(null, false, numBlocksX - 1);
+  undoStack.push(this.allBlocks_); 
+  statePointer++;
 };
 
 Grid.prototype.addRow = function(e, top, opt_numRows) {
@@ -116,7 +117,7 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.x_ = x;
   this.y_ = y;
   this.colors_ = [];
-  this.statePointer = 0;
+  this.statePointer_ = -1;
   var boundColorBox = this.colorBox.bind(this);
   var boundMouseUp = this.mouseUp.bind(this);
   this.el_ = $('<div>').addClass('block').click(boundColorBox).
@@ -129,24 +130,23 @@ var Box = function(blockWidth, blockHeight, x, y) {
 };
 
 Box.prototype.clear = function() {
-  this.el_.css('background-color', ''); 
-  this.colors_.push('');
+  this.setColor(''); 
 }
 
 Box.prototype.popState = function() {
-  this.statePointer = this.statePointer == 0 ? 0 : this.statePointer - 1;
-  this.el_.css('background-color', this.colors_[this.statePointer]);
+  this.statePointer_ = this.statePointer_ == 0 ? 0 : this.statePointer_ - 1;
+  this.el_.css('background-color', this.colors_[this.statePointer_]);
 }
 
 Box.prototype.forwardState = function() {
-  this.statePointer = this.statePointer == this.colors_.length - 1 ? this.statePointer : this.statePointer + 1;
-  this.el_.css('background-color', this.colors_[this.statePointer]);
+  this.statePointer_ = this.statePointer_ == this.colors_.length - 1 ? this.statePointer_ : this.statePointer_ + 1;
+  this.el_.css('background-color', this.colors_[this.statePointer_]);
 }
 
 Box.prototype.setColor = function(color) {
   this.el_.css('background-color', color);
   this.colors_.push(color);
-  this.statePointer++;
+  this.statePointer_++;
 }
 
 Box.prototype.mouseDown = function(e) {
@@ -158,30 +158,28 @@ Box.prototype.mouseUp = function(e) {
 }
 
 Box.prototype.colorBox = function(e) {
-    if (mouseDown_ && !this.setThisRun_) {
-      var color = util.getColorValue($('#color').val());
-      this.setThisRun_ = true;
-      setThisRun.push(this);
-      if (this.colors_[this.colors_.length - 1] == color) {
-        this.clear();
-        window.console.log ("Clearing the color!");
-      } else {
-        this.setColor(color);
-        window.console.log("Applying the color!", color);
-      }
+  if (mouseDown_ && !this.setThisRun_) {
+    var color = util.getColorValue($('#color').val());
+    this.setThisRun_ = true;
+    setThisRun.push(this);
+    if (eraseMode) {
+      this.clear();
+    } else {
+      this.setColor(color);
     }
-    if (mouseDown_ && mouseUp_) {
-          mouseDown_ = false;
-	  mouseUp_ = false;
-          this.setThisRun_ = false;
-          for (var i = 0; i < setThisRun.length; i++) {
-             setThisRun[i].setThisRun_ = false;
-          }
-          undoStack.insert(statePointer, setThisRun);
-          statePointer++;
-          setThisRun = [];
-          window.console.log("Done coloring!");
+  }
+  if (mouseDown_ && mouseUp_) {
+    mouseDown_ = false;
+    mouseUp_ = false;
+    this.setThisRun_ = false;
+    for (var i = 0; i < setThisRun.length; i++) {
+       setThisRun[i].setThisRun_ = false;
     }
+    statePointer++;
+    undoStack.insert(statePointer, setThisRun);
+    setThisRun = [];
+    window.console.log("Done coloring!");
+  }
 }
 
 function addColor(e) {
@@ -193,11 +191,13 @@ function addColor(e) {
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
   shade.addClass(SELECTED_COLOR_CLASS);
 }
+
 function setColorValue() {
-    shade = $(this);
-    $('.selected_color').removeClass('selected_color');
-    $('#color').val(shade.css('background-color'));
-    shade.addClass('selected_color');
+  shade = $(this);
+  $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+  $('#color').val(shade.css('background-color'));
+  shade.addClass(SELECTED_COLOR_CLASS);
+  eraseMode = false;
 }
 
 function render(e) {
@@ -206,15 +206,18 @@ function render(e) {
   var blockSize = parseInt($('#blockSize').val(), 10);
   new Grid(numBlocksX, numBlocksY, blockSize, blockSize);
 }
+
 function showOptions(e) {
   $('.options').toggle('slow');
 }
+
 function showRenderOptions(e) {
   $('#backdrop').show();
   $('#exitbutton').show();
   $('.panel').hide();
   $('#renderOptions').show();
 }
+
 function showColorOptions(e) {
   var backdrop = $('#backdrop');
   backdrop.show();
@@ -222,32 +225,38 @@ function showColorOptions(e) {
   $('.panel').hide();
   $('#colorOptions').show();
 }
+
 function hideBackdrop(e) {
   var backdrop = $('#backdrop');
   backdrop.hide();
 }
+
 function toggleAddColumnButton() {
   $('.addcolumnbutton').toggle();
 }
+
 function toggleAddRowButton() {
   $('.addrowbutton').toggle();
 }
+
 function undo() {
   if (statePointer <= 0) { return; }
-  statePointer--;
   var newState = undoStack[statePointer];
   for (var i = 0; i < newState.length; i++) {
     newState[i].popState();
   } 
+  statePointer--;
 }
+
 function redo() {
   if (statePointer > undoStack.length - 1) { return; }
+  statePointer++;
   var newState = undoStack[statePointer];
   for (var i = 0; i < newState.length; i++) {
     newState[i].forwardState();
   } 
-  statePointer++;
 }
+
 $('#new_shade').click(showColorOptions);
 $('#render').click(render);
 $('#addcolor').click(addColor);
@@ -260,4 +269,8 @@ $('.addcolumn').hover(toggleAddColumnButton, toggleAddColumnButton);
 $('.addrow').hover(toggleAddRowButton, toggleAddRowButton);
 $('#undo').click(undo);
 $('#redo').click(redo);
+$('#erase').click(function() {
+  eraseMode = true;
+  $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+});
 var grid = new Grid(60, 50, 10, 10);
