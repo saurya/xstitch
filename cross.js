@@ -2,6 +2,16 @@ Array.prototype.insert = function(index, item) {
   this.splice(index, 0, item);
 };
 
+String.prototype.format = function() {
+  var args = arguments;
+  return this.replace(/{(\d+)}/g, function(match, number) { 
+    return typeof args[number] != 'undefined'
+      ? args[number]
+      : match
+    ;
+  });
+};
+
 var blockWidth_ = 5;
 var blockHeight_ = 5;
 var setThisRun = [];
@@ -13,9 +23,13 @@ var ERASE_MODE = 'erase';
 var COPY_MODE = 'copy';
 var COLOR_MODE = 'color';
 var PASTE_MODE = 'paste';
+var DIAGONAL_MODE = 'diagonal';
 var mode = COLOR_MODE;
 var copyBuffer = { startbox: null };
 
+
+var TOP_LEFT_GRADIENT = '-webkit-gradient(linear, left top, right bottom, color-stop(50%, {0}), color-stop(50%, {1}))';
+var BOTTOM_LEFT_GRADIENT = '-webkit-gradient(linear, left bottom, right top, color-stop(50%, {0}), color-stop(50%, {1}))';
 var WHITE_COLOR = 'rgba(0, 0, 0, 0)';
 var BLOCK_CLASS = 'block';
 var GRID_CLASS = 'graph';
@@ -135,6 +149,8 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.el_.css('height', blockHeight + 'px');
   this.clear();
   this.setThisRun_ = false;
+  this.leftColor_ = '#fff';
+  this.rightColor_ = '#fff';
 };
 
 Box.prototype.getX = function() {
@@ -155,16 +171,42 @@ Box.prototype.getColor = function() {
 
 Box.prototype.popState = function() {
   this.statePointer_ = this.statePointer_ == 0 ? 0 : this.statePointer_ - 1;
-  this.el_.css('background-color', this.colors_[this.statePointer_]);
+  this.el_.css('background', this.colors_[this.statePointer_]);
 };
 
 Box.prototype.forwardState = function() {
   this.statePointer_ = this.statePointer_ == this.colors_.length - 1 ? this.statePointer_ : this.statePointer_ + 1;
-  this.el_.css('background-color', this.colors_[this.statePointer_]);
+  this.el_.css('background', this.colors_[this.statePointer_]);
 };
 
-Box.prototype.setColor = function(color) {
-  this.el_.css('background-color', color);
+function getGradientForClick(clickPosition, block) {
+  var x = clickPosition.pageX - block.el_.offset().left;
+  var y = clickPosition.pageY - block.el_.offset().top;  
+  var bottom = y > block.blockHeight_ / 2;
+  var right = x > block.blockWidth_ / 2;
+  var left = !right;
+  var top = !bottom;
+  var gradientString = TOP_LEFT_GRADIENT;
+  if (left && bottom || right && top) {
+    gradientString = BOTTOM_LEFT_GRADIENT;
+  }
+  return { 'gradient' : gradientString, 'right': right };
+}
+
+Box.prototype.setColor = function(color, clickPosition) {
+  if (mode == DIAGONAL_MODE) {
+    var gradientForClick = getGradientForClick(clickPosition, this);
+    if (gradientForClick['right']) {
+      this.rightColor_ = color;
+    } else {
+      this.leftColor_ = color;
+    }
+    color = gradientForClick['gradient'].format(this.leftColor_, this.rightColor_);
+  } else {
+    this.rightColor_ = color;
+    this.leftColor_ = color;
+  }
+  this.el_.css('background', color);
   this.colors_.push(color);
   this.statePointer_++;
 };
@@ -182,13 +224,13 @@ Box.prototype.mouseUp = function(e) {
 
 Box.prototype.colorBox = function(e) {
   if (mouseDown_ && !this.setThisRun_) {
-    var color = util.getColorValue($('#color').val());
     this.setThisRun_ = true;
     setThisRun.push(this);
     if (mode == ERASE_MODE) {
       this.clear();
-    } else if(mode == COLOR_MODE) {
-      this.setColor(color);
+    } else if(mode == COLOR_MODE || mode == DIAGONAL_MODE) {
+      var color = util.getColorValue($('#color').val());
+      this.setColor(color, e);
     }
   }
   if (mouseDown_ && mouseUp_) {
@@ -278,7 +320,7 @@ function setColorValue() {
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
   $('#color').val(shade.css('background-color'));
   shade.addClass(SELECTED_COLOR_CLASS);
-  mode = COLOR_MODE;
+  mode = mode == DIAGONAL_MODE ? DIAGONAL_MODE : COLOR_MODE;
 }
 
 function render(e) {
@@ -390,6 +432,9 @@ $('#paste').click(function() {
 });
 $('#image').click(function() {
   getInfoFromUser($(this),  setBackground); 
+});
+$('#diagonal').click(function() {
+  mode = mode == DIAGONAL_MODE ? COLOR_MODE : DIAGONAL_MODE;
 });
 
 var grid = new Grid(60, 50, 10, 10);
