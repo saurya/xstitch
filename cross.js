@@ -228,10 +228,18 @@ function alignBufferTopLeft(buffer) {
   buffer.maxY = maxY;
   buffer.minX = minX;
   buffer.minY = minY;
+  buffer.boxcolors = [];
+  for (var i = minY; i <= maxY; i++) {
+    for (var j = minX; j <= maxX; j++) {
+      var block = grid.rows_[i].blocks_[j];
+      buffer.boxcolors.push(new String(block.getColor()));
+    }
+  }
 }
 
 function applyToRegionAroundBox(box, buffer) {
   var changedBoxes = []; 
+  var bufferXLength = buffer.maxX - buffer.minX;
   for (var i = 0; i <= buffer.maxY - buffer.minY; i++) {
     var changedY = box.y_ + i;
     if (changedY > grid.rows_.length) { 
@@ -243,8 +251,8 @@ function applyToRegionAroundBox(box, buffer) {
         break;
       }
       var changedBox = grid.rows_[changedY].blocks_[changedX];
-      var copyBox = grid.rows_[buffer.minY + i].blocks_[buffer.minX + j];
-      changedBox.setColor(copyBox.getColor());
+      var copyBoxColor = copyBuffer.boxcolors[i * (bufferXLength + 1) + j];
+      changedBox.setColor(copyBoxColor);
       changedBoxes.push(changedBox);
     }
   }
