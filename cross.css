@@ -17,6 +17,10 @@
       white-space: nowrap;
       -webkit-user-select: none;
     }
+    #floatinginput {
+       position: absolute;
+       display: none;
+     }
     .addcolumn {
       position: absolute;
       width: 30px;

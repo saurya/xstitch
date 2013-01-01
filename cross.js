@@ -338,6 +338,25 @@ function redo() {
   } 
 }
 
+function getInfoFromUser(element, callback) {
+  var inputField = $('#floatinginput').keypress(function(e) {
+    callback($(this).val()); 
+    $(this).hide();
+  });
+  showInputField(element.offset().top + element.outerHeight(), 
+      element.offset().left);
+}
+
+function showInputField(top, left) {
+  var inputField = $('#floatinginput');
+  inputField.css('top', top).css('left', left);
+  inputField.show();
+  inputField.focus();
+}
+function setBackground(url) {
+  $('#graphcontainer').css('background-image', 'url("' + url + '")');
+}
+
 $('#new_shade').click(showColorOptions);
 $('#render').click(render);
 $('#addcolor').click(addColor);
@@ -368,6 +387,9 @@ $('#copy').click(function() {
 $('#paste').click(function() {
   mode = PASTE_MODE;
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+});
+$('#image').click(function() {
+  getInfoFromUser($(this),  setBackground); 
 });
 
 var grid = new Grid(60, 50, 10, 10);
