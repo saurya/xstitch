@@ -15,8 +15,11 @@ String.prototype.format = function() {
 var blockWidth_ = 5;
 var blockHeight_ = 5;
 var setThisRun = [];
-var undoStack = [];
+{% autoescape off %}
+var undoStack = {{stack}};
+{% endautoescape %}
 var statePointer = -1;
+var loadState = {{loadState}};
 var mouseDown_ = false;
 var mouseUp_ = false;
 var ERASE_MODE = 'erase';
@@ -64,9 +67,25 @@ var Grid = function(numBlocksX, numBlocksY, blockWidth, blockHeight) {
   this.allBlocks_ = [];
   this.addRow(null, false, numBlocksY);
   this.addColumn(null, false, numBlocksX - 1);
-  undoStack.push(this.allBlocks_); 
+  undoStack.push(setThisRun);
+  setThisRun = [];
   statePointer++;
 };
+
+Grid.prototype.applyColor = function(x, y, color) {
+  // TODO(saurya): This doesn't check for bounds at all.
+  this.rows_[y].blocks_[x].setColor(color);
+};
+
+Grid.prototype.popState = function(x, y) {
+  // TODO(saurya): This doesn't check for bounds at all.
+  this.rows_[y].blocks_[x].popState();
+}
+
+Grid.prototype.forwardState = function(x, y) {
+  // TODO(saurya): This doesn't check for bounds at all.
+  this.rows_[y].blocks_[x].forwardState();
+}
 
 Grid.prototype.addRow = function(e, top, opt_numRows) {
   opt_numRows = opt_numRows ? opt_numRows : 1;
@@ -209,7 +228,16 @@ Box.prototype.setColor = function(color, clickPosition) {
   this.el_.css('background', color);
   this.colors_.push(color);
   this.statePointer_++;
+  setThisRun.push(getActionObject(this.x_, this.y_, this.getColor()));
 };
+ 
+function getActionObject(x, y, color) {
+  return {
+      'x' : x,
+      'y' : y,
+      'color' : color
+  };
+}
 
 Box.prototype.mouseDown = function(e) {
   mouseDown_ = true;
@@ -225,7 +253,6 @@ Box.prototype.mouseUp = function(e) {
 Box.prototype.colorBox = function(e) {
   if (mouseDown_ && !this.setThisRun_) {
     this.setThisRun_ = true;
-    setThisRun.push(this);
     if (mode == ERASE_MODE) {
       this.clear();
     } else if(mode == COLOR_MODE || mode == DIAGONAL_MODE) {
@@ -246,7 +273,7 @@ Box.prototype.colorBox = function(e) {
       mode = PASTE_MODE;
     } else {
       if (mode == PASTE_MODE) {
-        setThisRun = applyToRegionAroundBox(this, copyBuffer);
+        applyToRegionAroundBox(this, copyBuffer);
         copyBuffer.startbox = null;
         copyBuffer.endbox = null;
       }
@@ -366,24 +393,26 @@ function undo() {
   if (statePointer <= 0) { return; }
   var newState = undoStack[statePointer];
   for (var i = 0; i < newState.length; i++) {
-    newState[i].popState();
+    grid.popState(newState[i].x, newState[i].y);
   } 
   statePointer--;
 }
 
 function redo() {
-  if (statePointer > undoStack.length - 1) { return; }
+  if (statePointer >= undoStack.length - 1) { return; }
   statePointer++;
   var newState = undoStack[statePointer];
   for (var i = 0; i < newState.length; i++) {
-    newState[i].forwardState();
+    grid.forwardState(newState[i].x, newState[i].y);
   } 
 }
 
 function getInfoFromUser(element, callback) {
   var inputField = $('#floatinginput').keypress(function(e) {
-    callback($(this).val()); 
-    $(this).hide();
+    if (e.keyCode == 13) {
+      callback($(this).val()); 
+      $(this).hide();
+    }
   });
   showInputField(element.offset().top + element.outerHeight(), 
       element.offset().left);
@@ -436,5 +465,32 @@ $('#image').click(function() {
 $('#diagonal').click(function() {
   mode = mode == DIAGONAL_MODE ? COLOR_MODE : DIAGONAL_MODE;
 });
+$('#save').click(function() {
+  getInfoFromUser($(this), function(name) {
+    $(this).html('Saving...');
+    $.post('save', { 'name' : name, 'stack' : window.JSON.stringify(undoStack) }, saveSuccess);
+  });
+});
+
+function saveSuccess(data) {
+  alert(data);
+}
+
+var undo = undoStack;
+if (loadState) {
+  undoStack = [];
+}
 
 var grid = new Grid(60, 50, 10, 10);
+
+if (loadState) {
+  for (statePointer = 1; statePointer < undo.length; statePointer++) {
+    for (var j = 0; j < undo[statePointer].length; j++) {
+      var currentAction = undo[statePointer][j];
+      grid.applyColor(currentAction.x, currentAction.y, currentAction.color);
+    }
+  }
+  undoStack = undo;
+  // TODO(saurya) : This assumes that the user saved with the state pointer all the way at the end of the undo stack, this isn't always true - we should serialize and send the statepointer in addition to the rest of this data.
+  statePointer = undoStack.length - 1;
+}
