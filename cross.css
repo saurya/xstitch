@@ -136,7 +136,7 @@ filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', end
     }
     .button {
       display: inline-block;
-      block-shadow: #777 2px 2px 2px;
+      box-shadow: #777 2px 2px 2px;
       cursor: pointer;
       max-width: 80px;
       padding: 3px;
@@ -152,4 +152,7 @@ background: -o-linear-gradient(top,  #1e5799 0%,#2989d8 49%,#207cca 59%,#7db9e8 
 background: -ms-linear-gradient(top,  #1e5799 0%,#2989d8 49%,#207cca 59%,#7db9e8 100%); /* IE10+ */
 background: linear-gradient(to bottom,  #1e5799 0%,#2989d8 49%,#207cca 59%,#7db9e8 100%); /* W3C */
 filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#1e5799', endColorstr='#7db9e8',GradientType=0 ); /* IE6-9 */
+    }
+    .selected_button {
+      border: 2px solid rgb(74, 74, 74)
     }

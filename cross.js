@@ -39,6 +39,7 @@ var GRID_CLASS = 'graph';
 var ROW_CLASS = 'row';
 var SHADE_CLASS = 'shade';
 var SELECTED_COLOR_CLASS = 'selected_color';
+var SELECTED_BUTTON = 'selected_button';
 var selector = {
 GRID_CLASS: '.' + GRID_CLASS,
 SHADE_CLASS: '.' + SHADE_CLASS,
@@ -168,8 +169,8 @@ var Box = function(blockWidth, blockHeight, x, y) {
   this.el_.css('height', blockHeight + 'px');
   this.clear();
   this.setThisRun_ = false;
-  this.leftColor_ = '#fff';
-  this.rightColor_ = '#fff';
+  this.leftColor_ = 'rgba(0,0,0,0)';
+  this.rightColor_ = 'rgba(0,0,0,0)';
 };
 
 Box.prototype.getX = function() {
@@ -464,6 +465,11 @@ $('#image').click(function() {
 });
 $('#diagonal').click(function() {
   mode = mode == DIAGONAL_MODE ? COLOR_MODE : DIAGONAL_MODE;
+  if (mode == DIAGONAL_MODE) {
+    $(this).addClass(SELECTED_BUTTON);
+  } else {
+    $(this).removeClass(SELECTED_BUTTON);
+  }
 });
 $('#save').click(function() {
   getInfoFromUser($(this), function(name) {
