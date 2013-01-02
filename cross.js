@@ -214,6 +214,7 @@ function getGradientForClick(clickPosition, block) {
 }
 
 Box.prototype.setColor = function(color, clickPosition) {
+  if (color == this.getColor()) { return; }
   if (mode == DIAGONAL_MODE) {
     var gradientForClick = getGradientForClick(clickPosition, this);
     if (gradientForClick['right']) {
@@ -252,36 +253,39 @@ Box.prototype.mouseUp = function(e) {
 };
 
 Box.prototype.colorBox = function(e) {
-  if (mouseDown_ && !this.setThisRun_) {
-    this.setThisRun_ = true;
-    if (mode == ERASE_MODE) {
-      this.clear();
-    } else if(mode == COLOR_MODE || mode == DIAGONAL_MODE) {
-      var color = util.getColorValue($('#color').val());
+  if (mouseDown_) {
+    var color = util.getColorValue($('#color').val());
+    if (mode == COLOR_MODE) {
       this.setColor(color, e);
     }
-  }
-  if (mouseDown_ && mouseUp_) {
-    mouseDown_ = false;
-    mouseUp_ = false;
-    this.setThisRun_ = false;
-    for (var i = 0; i < setThisRun.length; i++) {
-       setThisRun[i].setThisRun_ = false;
+    if (mode == ERASE_MODE) {
+      this.clear();
     }
-    if (mode == COPY_MODE) {
-      copyBuffer.endbox = this;
-      alignBufferTopLeft(copyBuffer);
-      mode = PASTE_MODE;
-    } else {
-      if (mode == PASTE_MODE) {
-        applyToRegionAroundBox(this, copyBuffer);
-        copyBuffer.startbox = null;
-        copyBuffer.endbox = null;
+    if (mode == DIAGONAL_MODE) {
+      this.setColor(color, e);
+    }
+    if (mouseUp_) {
+      mouseDown_ = false;
+      mouseUp_ = false;
+      this.setThisRun_ = false;
+      for (var i = 0; i < setThisRun.length; i++) {
+         setThisRun[i].setThisRun_ = false;
       }
-      statePointer++;
-      undoStack.insert(statePointer, setThisRun);
+      if (mode == COPY_MODE) {
+        copyBuffer.endbox = this;
+        alignBufferTopLeft(copyBuffer);
+        mode = PASTE_MODE;
+      } else {
+        if (mode == PASTE_MODE) {
+          applyToRegionAroundBox(this, copyBuffer);
+          copyBuffer.startbox = null;
+          copyBuffer.endbox = null;
+        }
+        statePointer++;
+        undoStack.insert(statePointer, setThisRun);
+      }
+      setThisRun = [];
     }
-    setThisRun = [];
   }
 };
 
@@ -348,7 +352,8 @@ function setColorValue() {
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
   $('#color').val(shade.css('background-color'));
   shade.addClass(SELECTED_COLOR_CLASS);
-  mode = mode == DIAGONAL_MODE ? DIAGONAL_MODE : COLOR_MODE;
+  // XXX(saurya): This is a terrible idea - using the view to indicate whether we're in diagonal mode.
+  mode = $('#diagonal').hasClass(SELECTED_BUTTON) ? DIAGONAL_MODE : COLOR_MODE;
 }
 
 function render(e) {
@@ -451,10 +456,12 @@ $('#redo').click(redo);
 $('#erase').click(function() {
   mode = ERASE_MODE;
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+  $('.' + SELECTED_BUTTON).removeClass(SELECTED_BUTTON);
 });
 $('#copy').click(function() {
   mode = COPY_MODE;
   $('.' + SELECTED_COLOR_CLASS).removeClass(SELECTED_COLOR_CLASS);
+  $('.' + SELECTED_BUTTON).removeClass(SELECTED_BUTTON);
 });
 $('#paste').click(function() {
   mode = PASTE_MODE;
@@ -468,7 +475,7 @@ $('#diagonal').click(function() {
   if (mode == DIAGONAL_MODE) {
     $(this).addClass(SELECTED_BUTTON);
   } else {
-    $(this).removeClass(SELECTED_BUTTON);
+    $('.' + SELECTED_BUTTON).removeClass(SELECTED_BUTTON);
   }
 });
 $('#save').click(function() {
